@@ -103,9 +103,11 @@ namespace GameVanilla.Editor
                 GUILayout.Space(15);
                 DrawInGameBoosterSettings();
                 GUILayout.EndVertical();
-
+                GUILayout.BeginVertical();
+                GravityDirection();
+                GUILayout.EndVertical();
                 GUILayout.Space(300);
-
+               
                 GUILayout.BeginVertical();
                 DrawGoalSettings();
                 GUILayout.Space(15);
@@ -184,7 +186,7 @@ namespace GameVanilla.Editor
 
             GUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(new GUIContent("Limit type", "The limit type of this level."),
-                GUILayout.Width(EditorGUIUtility.labelWidth));
+            GUILayout.Width(EditorGUIUtility.labelWidth));
             currentLevel.limitType = (LimitType) EditorGUILayout.EnumPopup(currentLevel.limitType, GUILayout.Width(100));
             GUILayout.EndHorizontal();
 
@@ -227,8 +229,9 @@ namespace GameVanilla.Editor
                 GUILayout.Width(EditorGUIUtility.labelWidth));
             currentLevel.score3 = EditorGUILayout.IntField(currentLevel.score3, GUILayout.Width(70));
             GUILayout.EndHorizontal();
-
             GUILayout.EndVertical();
+           
+
         }
 
         /// <summary>
@@ -261,8 +264,22 @@ namespace GameVanilla.Editor
             GUILayout.EndVertical();
 
             EditorGUIUtility.labelWidth = oldLabelWidth;
-        }
 
+            
+        }
+        ///<summary>
+        ///Draw Applay Gravity tab
+        /// </summary>
+        void GravityDirection()
+        {
+            EditorGUILayout.LabelField("Applay Gravity", EditorStyles.boldLabel);
+            GUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(new GUIContent("Directins", "The Gravity Direction type of this level."),
+            GUILayout.Width(EditorGUIUtility.labelWidth));
+            currentLevel.gravitydirection = (GravityDirection)EditorGUILayout.EnumPopup(currentLevel.gravitydirection, GUILayout.Width(100));
+            GUILayout.EndHorizontal();
+
+        }
         /// <summary>
         /// Draws the goal settings.
         /// </summary>

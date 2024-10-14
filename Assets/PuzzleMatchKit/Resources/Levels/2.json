@@ -250,7 +250,9 @@
         }
     ],
     "limitType": "Moves",
+    "gravitydirection": "BottomToTop",
     "limit": 20,
+    "penalty": 0,
     "goals": [
         {
             "blockType": "Stone",

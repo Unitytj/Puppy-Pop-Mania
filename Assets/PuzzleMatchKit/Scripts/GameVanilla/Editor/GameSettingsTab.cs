@@ -329,6 +329,7 @@ namespace GameVanilla.Editor
             gameConfig.livesRefillCost = EditorGUILayout.IntField(gameConfig.livesRefillCost, GUILayout.Width(70));
             GUILayout.EndHorizontal();
         }
+        
 
         /// <summary>
         /// Draws the coins settings.

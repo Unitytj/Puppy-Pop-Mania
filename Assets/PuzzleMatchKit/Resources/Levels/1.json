@@ -185,7 +185,9 @@
         }
     ],
     "limitType": "Moves",
+    "gravitydirection": "TopToBottom",
     "limit": 15,
+    "penalty": 0,
     "goals": [
         {
             "blockType": "Block1",

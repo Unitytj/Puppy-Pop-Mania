@@ -15,6 +15,14 @@ namespace GameVanilla.Game.Common
         Time
     }
 
+    public enum GravityDirection
+    {
+        TopToBottom,
+        BottomToTop,
+        RightToLeft,
+        LeftToRight
+    }
+
     /// <summary>
     /// This class stores the settings of a game level.
     /// </summary>
@@ -27,6 +35,7 @@ namespace GameVanilla.Game.Common
         public List<LevelTile> tiles = new List<LevelTile>();
 
         public LimitType limitType;
+        public GravityDirection gravitydirection;
         public int limit;
         public int penalty;
 

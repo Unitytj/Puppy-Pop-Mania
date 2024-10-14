@@ -17,6 +17,7 @@ using GameVanilla.Core;
 using GameVanilla.Game.Common;
 using GameVanilla.Game.UI;
 using GameVanilla.Game.Popups;
+using static Blockgravitydirection;
 
 namespace GameVanilla.Game.Scenes
 {
@@ -99,7 +100,7 @@ namespace GameVanilla.Game.Scenes
 
         [SerializeField]
         private int testLevel;
-
+       
         /// <summary>
         /// Unity's Start method.
         /// </summary>
@@ -119,7 +120,7 @@ namespace GameVanilla.Game.Scenes
             {
                 level = FileUtils.LoadJsonFile<Level>(serializer, "Levels/" + testLevel);
             }
-
+            
             ResetLevelData();
 
             CreateBackgroundTiles();
@@ -903,131 +904,387 @@ namespace GameVanilla.Game.Scenes
         /// <summary>
         /// Applies the gravity to the level.
         /// </summary>
+
         private void ApplyGravity()
         {
+            // Apply gravity based on current direction
+            switch (level.gravitydirection)
+            {
+                case GameVanilla.Game.Common.GravityDirection.TopToBottom:
+                    ApplyGravityTopToBottom();
+                    break;
+                case GameVanilla.Game.Common.GravityDirection.BottomToTop:
+                    ApplyGravityBottomToTop();
+                    break;
+                case GameVanilla.Game.Common.GravityDirection.LeftToRight:
+                    ApplyGravityLeftToRight();
+                    break;
+                case GameVanilla.Game.Common.GravityDirection.RightToLeft:
+                    ApplyGravityRightToLeft();
+                    break;
+            }
+
+            // Handle spawning new tiles based on gravity direction
+            HandleTileSpawning();
+        }
+
+        private void ApplyGravityTopToBottom()
+        {
+            // Traverse from top (high j) to bottom (low j)
             for (var i = 0; i < level.width; i++)
             {
                 for (var j = level.height - 1; j >= 0; j--)
                 {
                     var tileIndex = i + (j * level.width);
                     if (tileEntities[tileIndex] == null ||
-                        IsEmptyBlock(tileEntities[tileIndex].GetComponent<TileEntity>()) ||
-                        IsStoneBlock(tileEntities[tileIndex].GetComponent<TileEntity>()))
+                        IsStoneBlock(tileEntities[tileIndex].GetComponent<TileEntity>())) // Skip stone blocks
                     {
                         continue;
                     }
 
-                    // Find bottom.
-                    var bottom = -1;
-                    for (var k = j; k < level.height; k++)
+                    // Find the next empty spot below
+                    for (var k = j + 1; k < level.height; k++)
                     {
-                        var idx = i + (k * level.width);
-                        if (tileEntities[idx] == null)
-                        {
-                            bottom = k;
-                        }
-                        else
-                        {
-                            var block = tileEntities[idx].GetComponent<Block>();
-                            if (block != null && block.type == BlockType.Stone)
-                            {
-                                break;
-                            }
-                        }
-                    }
+                        var targetIndex = i + (k * level.width);
 
-                    if (bottom != -1)
-                    {
-                        var tile = tileEntities[tileIndex];
-                        if (tile != null)
+                        if (tileEntities[targetIndex] == null) // Empty space found
                         {
-                            var numTilesToFall = bottom - j;
-                            tileEntities[tileIndex + (numTilesToFall * level.width)] = tileEntities[tileIndex];
-                            var tween = LeanTween.LeanTween.move(tile,
-                                tilePositions[tileIndex + level.width * numTilesToFall],
-                                blockFallSpeed);
-                            tween.setEase(LeanTween.LeanTweenType.easeInQuad);
-                            tween.setOnComplete(() =>
-                            {
-                                if (tile.activeSelf)
-                                {
-                                    tile.GetComponent<Animator>().SetTrigger("Falling");
-                                }
-                            });
-                            tileEntities[tileIndex] = null;
-                        }
-                    }
-                }
-            }
-
-            for (var i = 0; i < level.width; i++)
-            {
-                var numEmpties = 0;
-                for (var j = 0; j < level.height; j++)
-                {
-                    var idx = i + (j * level.width);
-                    if (tileEntities[idx] == null)
-                    {
-                        numEmpties += 1;
-                    }
-                    else
-                    {
-                        var block = tileEntities[idx].GetComponent<Block>();
-                        if (block != null && block.type == BlockType.Stone)
-                        {
+                            MoveTile(tileIndex, targetIndex);
+                            SetTileSortingOrder(tileEntities[targetIndex], i, k);
                             break;
                         }
-                    }
-                }
+                        else // There is a tile, so move it downward as well
+                        {
+                            var tileBelow = tileEntities[targetIndex];
+                            var belowTargetIndex = i + ((k + 1) * level.width);
 
-                if (numEmpties > 0)
-                {
-                    for (var j = 0; j < level.height; j++)
-                    {
-                        var tileIndex = i + (j * level.width);
-                        var isEmptyTile = false;
-                        var isStoneTile = false;
-                        if (tileEntities[tileIndex] != null)
-                        {
-                            var blockTile = tileEntities[tileIndex].GetComponent<Block>();
-                            if (blockTile != null)
+                            if (k + 1 < level.height && tileEntities[belowTargetIndex] == null) // Check if the tile below can be moved
                             {
-                                isEmptyTile = blockTile.type == BlockType.Empty;
-                                isStoneTile = blockTile.type == BlockType.Stone;
+                                MoveTile(targetIndex, belowTargetIndex); // Move the tile below
+                                SetTileSortingOrder(tileEntities[belowTargetIndex], i, k + 1);
                             }
-                            if (isStoneTile)
-                            {
-                                break;
-                            }
-                        }
-                        if (tileEntities[tileIndex] == null && !isEmptyTile)
-                        {
-                            var tile = CreateNewBlock();
-                            var pos = tilePositions[i];
-                            pos.y = tilePositions[i].y + (numEmpties * (blockHeight + verticalSpacing));
-                            --numEmpties;
-                            tile.transform.position = pos;
-                            var tween = LeanTween.LeanTween.move(tile,
-                                tilePositions[tileIndex],
-                                blockFallSpeed);
-                            tween.setEase(LeanTween.LeanTweenType.easeInQuad);
-                            tween.setOnComplete(() =>
-                            {
-                                if (tile.activeSelf)
-                                {
-                                    tile.GetComponent<Animator>().SetTrigger("Falling");
-                                }
-                            });
-                            tileEntities[tileIndex] = tile;
-                        }
-                        if (tileEntities[tileIndex] != null)
-                        {
-                            tileEntities[tileIndex].GetComponent<SpriteRenderer>().sortingOrder = level.height - j;
                         }
                     }
                 }
             }
         }
+
+        private void ApplyGravityBottomToTop()
+        {
+            // Traverse from bottom (low j) to top (high j)
+            for (var i = 0; i < level.width; i++)
+            {
+                for (var j = 0; j < level.height; j++)
+                {
+                    var tileIndex = i + (j * level.width);
+                    if (tileEntities[tileIndex] == null ||
+                        IsStoneBlock(tileEntities[tileIndex].GetComponent<TileEntity>()))
+                    {
+                        continue;
+                    }
+
+                    // Find the next empty spot above
+                    for (var k = j - 1; k >= 0; k--)
+                    {
+                        var targetIndex = i + (k * level.width);
+
+                        if (tileEntities[targetIndex] == null) // Empty space found
+                        {
+                            MoveTile(tileIndex, targetIndex);
+                            SetTileSortingOrder(tileEntities[targetIndex], i, k);
+                            break;
+                        }
+                        else // There is a tile, so move it upward as well
+                        {
+                            var tileAbove = tileEntities[targetIndex];
+                            var aboveTargetIndex = i + ((k - 1) * level.width);
+
+                            if (k - 1 >= 0 && tileEntities[aboveTargetIndex] == null) // Check if the tile above can be moved
+                            {
+                                MoveTile(targetIndex, aboveTargetIndex); // Move the tile above
+                                SetTileSortingOrder(tileEntities[aboveTargetIndex], i, k - 1);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ApplyGravityLeftToRight()
+        {
+            // Traverse from left (low i) to right (high i)
+            for (var j = 0; j < level.height; j++)
+            {
+                for (var i = 0; i < level.width; i++)
+                {
+                    var tileIndex = i + (j * level.width);
+                    if (tileEntities[tileIndex] == null ||
+                        IsStoneBlock(tileEntities[tileIndex].GetComponent<TileEntity>()))
+                    {
+                        continue;
+                    }
+
+                    // Find the next empty spot to the right
+                    for (var k = i + 1; k < level.width; k++)
+                    {
+                        var targetIndex = k + (j * level.width);
+
+                        if (tileEntities[targetIndex] == null) // Empty space found
+                        {
+                            MoveTile(tileIndex, targetIndex);
+                            SetTileSortingOrder(tileEntities[targetIndex], k, j);
+                            break;
+                        }
+                        else // There is a tile, so move it rightward as well
+                        {
+                            var tileRight = tileEntities[targetIndex];
+                            var rightTargetIndex = (k + 1) + (j * level.width);
+
+                            if (k + 1 < level.width && tileEntities[rightTargetIndex] == null) // Check if the tile to the right can be moved
+                            {
+                                MoveTile(targetIndex, rightTargetIndex); // Move the tile to the right
+                                SetTileSortingOrder(tileEntities[rightTargetIndex], k + 1, j);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ApplyGravityRightToLeft()
+        {
+            // Traverse from right (high i) to left (low i)
+            for (var j = 0; j < level.height; j++)
+            {
+                for (var i = level.width - 1; i >= 0; i--)
+                {
+                    var tileIndex = i + (j * level.width);
+                    if (tileEntities[tileIndex] == null ||
+                        IsStoneBlock(tileEntities[tileIndex].GetComponent<TileEntity>()))
+                    {
+                        continue;
+                    }
+
+                    // Find the next empty spot to the left
+                    for (var k = i - 1; k >= 0; k--)
+                    {
+                        var targetIndex = k + (j * level.width);
+
+                        if (tileEntities[targetIndex] == null) // Empty space found
+                        {
+                            MoveTile(tileIndex, targetIndex);
+                            SetTileSortingOrder(tileEntities[targetIndex], k, j);
+                            break;
+                        }
+                        else // There is a tile, so move it leftward as well
+                        {
+                            var tileLeft = tileEntities[targetIndex];
+                            var leftTargetIndex = (k - 1) + (j * level.width);
+
+                            if (k - 1 >= 0 && tileEntities[leftTargetIndex] == null) // Check if the tile to the left can be moved
+                            {
+                                MoveTile(targetIndex, leftTargetIndex); // Move the tile to the left
+                                SetTileSortingOrder(tileEntities[leftTargetIndex], k - 1, j);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+
+
+        // Method to get the target index based on gravity direction
+        private int GetTargetTileIndex(int i, int j)
+        {
+            switch (level.gravitydirection)
+            {
+                case GameVanilla.Game.Common.GravityDirection.TopToBottom:
+                    return FindBottom(i, j); // Move downwards
+                case GameVanilla.Game.Common.GravityDirection.BottomToTop:
+                    return FindTop(i, j); // Move upwards
+                case GameVanilla.Game.Common.GravityDirection.LeftToRight:
+                    return FindRight(i, j); // Move rightwards
+                case GameVanilla.Game.Common.GravityDirection.RightToLeft:
+                    return FindLeft(i, j); // Move leftwards
+                default:
+                    return -1;
+            }
+        }
+
+        // Move tile from source index to target index
+        private void MoveTile(int sourceIndex, int targetIndex)
+        {
+            if (sourceIndex == targetIndex || targetIndex == -1) return;
+
+            var tile = tileEntities[sourceIndex];
+            if (tile != null)
+            {
+                tileEntities[targetIndex] = tileEntities[sourceIndex];
+
+                // Animate the tile movement
+                var tween = LeanTween.LeanTween.move(tile,
+                    tilePositions[targetIndex],
+                    blockFallSpeed);
+
+                tween.setEase(LeanTween.LeanTweenType.easeInQuad);
+                tween.setOnComplete(() =>
+                {
+                    if (tile.activeSelf)
+                    {
+                        if (tile.GetComponent<Animator>()!=null)
+                        {
+                            tile.GetComponent<Animator>().SetTrigger("Falling");
+                        }
+                        
+                    }
+                });
+
+                tileEntities[sourceIndex] = null;  // Clear the original position
+            }
+        }
+
+        // Set the sorting order based on gravity direction
+        private void SetTileSortingOrder(GameObject tile, int i, int j)
+        {
+            var spriteRenderer = tile.GetComponent<SpriteRenderer>();
+
+            switch (level.gravitydirection)
+            {
+                case GameVanilla.Game.Common.GravityDirection.TopToBottom:
+                    spriteRenderer.sortingOrder = level.height - j;  // Higher j (closer to bottom) has higher order
+                    break;
+                case GameVanilla.Game.Common.GravityDirection.BottomToTop:
+                    spriteRenderer.sortingOrder = j;  // Higher j (closer to top) has higher order
+                    break;
+                case GameVanilla.Game.Common.GravityDirection.LeftToRight:
+                    spriteRenderer.sortingOrder = level.width - i;  // Higher i (closer to right) has higher order
+                    break;
+                case GameVanilla.Game.Common.GravityDirection.RightToLeft:
+                    spriteRenderer.sortingOrder = i;  // Higher i (closer to left) has higher order
+                    break;
+            }
+        }
+
+        // Helper methods to find empty tiles based on gravity direction
+
+        // Find the lowest empty position (for top to bottom)
+        private int FindBottom(int i, int j)
+        {
+            for (var k = j + 1; k < level.height; k++)
+            {
+                var idx = i + (k * level.width);
+                if (tileEntities[idx] == null) return idx;
+                var block = tileEntities[idx]?.GetComponent<Block>();
+                if (block != null && block.type == BlockType.Stone) break;
+            }
+            return -1;
+        }
+
+        // Find the highest empty position (for bottom to top)
+        private int FindTop(int i, int j)
+        {
+            for (var k = j - 1; k >= 0; k--)
+            {
+                var idx = i + (k * level.width);
+                if (tileEntities[idx] == null) return idx;
+                var block = tileEntities[idx]?.GetComponent<Block>();
+                if (block != null && block.type == BlockType.Stone) break;
+            }
+            return -1;
+        }
+
+        // Find the rightmost empty position (for left to right)
+        private int FindRight(int i, int j)
+        {
+            for (var k = i + 1; k < level.width; k++)
+            {
+                var idx = k + (j * level.width);
+                if (tileEntities[idx] == null) return idx;
+                var block = tileEntities[idx]?.GetComponent<Block>();
+                if (block != null && block.type == BlockType.Stone) break;
+            }
+            return -1;
+        }
+
+        // Find the leftmost empty position (for right to left)
+        private int FindLeft(int i, int j)
+        {
+            for (var k = i - 1; k >= 0; k--)
+            {
+                var idx = k + (j * level.width);
+                if (tileEntities[idx] == null) return idx;
+                var block = tileEntities[idx]?.GetComponent<Block>();
+                if (block != null && block.type == BlockType.Stone) break;
+            }
+            return -1;
+        }
+
+        // Handle spawning new tiles based on gravity direction
+        private void HandleTileSpawning()
+        {
+            for (var i = 0; i < level.width; i++)
+            {
+                for (var j = 0; j < level.height; j++)
+                {
+                    var tileIndex = i + (j * level.width);
+                    if (tileEntities[tileIndex] == null)
+                    {
+                        SpawnTileAt(i, j, tileIndex);  // Spawn tiles based on gravity direction
+                    }
+                }
+            }
+        }
+
+        // Spawn tile at the appropriate edge based on gravity direction
+        private void SpawnTileAt(int i, int j, int tileIndex)
+        {
+            var tile = CreateNewBlock();
+            Vector3 spawnPos = tilePositions[tileIndex];  // Default to tile position
+
+            // Adjust spawn position based on gravity direction
+            switch (level.gravitydirection)
+            {
+                case GameVanilla.Game.Common.GravityDirection.BottomToTop:
+                    spawnPos.y = tilePositions[i].y - (level.height * (blockHeight + verticalSpacing));  // Spawn at the bottom
+                    break;
+                case GameVanilla.Game.Common.GravityDirection.TopToBottom:
+                    spawnPos.y = tilePositions[i].y + (level.height * (blockHeight + verticalSpacing));  // Spawn at the top
+                    break;
+                case GameVanilla.Game.Common.GravityDirection.LeftToRight:
+                    spawnPos.x = tilePositions[i].x - (level.width * (blockWidth + horizontalSpacing));  // Spawn on the left
+                    break;
+                case GameVanilla.Game.Common.GravityDirection.RightToLeft:
+                    spawnPos.x = tilePositions[i].x + (level.width * (blockWidth + horizontalSpacing));  // Spawn on the right
+                    break;
+            }
+
+            tile.transform.position = spawnPos;
+
+            // Animate the tile moving to its new position
+            var tween = LeanTween.LeanTween.move(tile,
+                tilePositions[tileIndex],
+                blockFallSpeed);
+
+            tween.setEase(LeanTween.LeanTweenType.easeInQuad);
+            tween.setOnComplete(() =>
+            {
+                if (tile.activeSelf)
+                {
+                    tile.GetComponent<Animator>().SetTrigger("Falling");
+                }
+            });
+
+            tileEntities[tileIndex] = tile;
+
+            // Set sorting order for the new tile
+            SetTileSortingOrder(tile, i, j);
+        }
+
+
+
+
+
 
         /// <summary>
         /// Creates a new block.
